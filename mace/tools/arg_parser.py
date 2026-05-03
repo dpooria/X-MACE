@@ -43,6 +43,18 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         default="smooth_nacs",
     )
     parser.add_argument(
+        "--socs_key",
+        help="Key of reference nacs in training xyz",
+        type=str,
+        default="REF_socs",
+    )
+    parser.add_argument(
+        "--osce_key",
+        help="Key of reference nacs in training xyz",
+        type=str,
+        default="REF_osce",
+    )
+    parser.add_argument(
         "--log_dir", help="directory for log files", type=str, default=None
     )
     parser.add_argument(
@@ -82,7 +94,8 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
     )
-    parser.add_argument("--log_level", help="log level", type=str, default="INFO")
+    parser.add_argument("--log_level", help="log level",
+                        type=str, default="INFO")
 
     parser.add_argument("--n_energies", help="Number of energies", type=int)
 
@@ -267,6 +280,11 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Compute SOCs if this flag is set",
     )
+    parser.add_argument(
+        "--compute_osce",
+        action="store_true",
+        help="Compute osce if this flag is set",
+    )
     # Dataset
     parser.add_argument(
         "--train_file",
@@ -416,20 +434,26 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--forces_weight", help="weight of forces loss", type=float, default=100.0
-        )
-    
+    )
+
     parser.add_argument(
         "--nacs_weight", help="weight of nacs loss", type=float, default=100.0
     )
     parser.add_argument(
         "--socs_weight", help="weight of socs loss", type=float, default=100.0
-    )    
+    )
+    parser.add_argument(
+        "--osce_weight", help="weight of osce loss", type=float, default=100.0
+    )
     parser.add_argument(
         "--soc_num", help="Number of socs", type=int
-    )   
+    )
+    parser.add_argument(
+        "--osce_num", help="Number of osce", type=int
+    )
     parser.add_argument(
         "--nac_num", help="Number of nacs", type=int
-    )   
+    )
     parser.add_argument(
         "--swa_forces_weight",
         "--stage_two_forces_weight",
@@ -507,7 +531,8 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.9,
     )
-    parser.add_argument("--batch_size", help="batch size", type=int, default=10)
+    parser.add_argument("--batch_size", help="batch size",
+                        type=int, default=10)
     parser.add_argument(
         "--valid_batch_size", help="Validation batch size", type=int, default=10
     )

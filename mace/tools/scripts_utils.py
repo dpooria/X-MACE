@@ -28,6 +28,7 @@ class SubsetCollection:
     valid: data.Configurations
     tests: List[Tuple[str, data.Configurations]]
 
+
 @dataclasses.dataclass
 class CISubsetCollection:
     train: data.Configurations
@@ -35,6 +36,7 @@ class CISubsetCollection:
     non_CI_train: data.Configurations
     valid: data.Configurations
     tests: List[Tuple[str, data.Configurations]]
+
 
 def get_dataset_from_xyz(
     work_dir: str,
@@ -53,6 +55,7 @@ def get_dataset_from_xyz(
     nacs_key: str = "REF_nacs",
     charges_key: str = "charges",
     socs_key: str = 'REF_socs',
+    osce_key: str = 'REF_osce',
 ) -> Tuple[SubsetCollection, Optional[Dict[int, float]]]:
     """Load training and test dataset from xyz file"""
     atomic_energies_dict, all_train_configs = data.load_from_xyz(
@@ -64,8 +67,9 @@ def get_dataset_from_xyz(
         virials_key=virials_key,
         dipoles_key=dipoles_key,
         charges_key=charges_key,
-        nacs_key = nacs_key,
+        nacs_key=nacs_key,
         socs_key=socs_key,
+        osce_key=osce_key,
         extract_atomic_energies=True,
         keep_isolated_atoms=keep_isolated_atoms,
     )
@@ -79,9 +83,10 @@ def get_dataset_from_xyz(
             stress_key=stress_key,
             virials_key=virials_key,
             dipoles_key=dipoles_key,
-            nacs_key = nacs_key,
+            nacs_key=nacs_key,
             charges_key=charges_key,
             socs_key=socs_key,
+            osce_key=osce_key,
             extract_atomic_energies=False,
         )
         train_configs = all_train_configs
@@ -99,18 +104,19 @@ def get_dataset_from_xyz(
             forces_key=forces_key,
             dipoles_key=dipoles_key,
             stress_key=stress_key,
-            nacs_key = nacs_key,
+            nacs_key=nacs_key,
             virials_key=virials_key,
             charges_key=charges_key,
             socs_key=socs_key,
+            osce_key=socs_key,
             extract_atomic_energies=False,
         )
         # create list of tuples (config_type, list(Atoms))
         test_configs = data.test_config_types(all_test_configs)
 
-
     return (
-        SubsetCollection(train=train_configs, valid=valid_configs, tests=test_configs),
+        SubsetCollection(train=train_configs,
+                         valid=valid_configs, tests=test_configs),
         atomic_energies_dict,
     )
 
@@ -259,7 +265,8 @@ def convert_from_json_format(dict_input):
         )
     dict_output["r_max"] = float(dict_input["r_max"])
     dict_output["num_bessel"] = int(dict_input["num_bessel"])
-    dict_output["num_polynomial_cutoff"] = float(dict_input["num_polynomial_cutoff"])
+    dict_output["num_polynomial_cutoff"] = float(
+        dict_input["num_polynomial_cutoff"])
     dict_output["max_ell"] = int(dict_input["max_ell"])
     dict_output["num_interactions"] = int(dict_input["num_interactions"])
     dict_output["num_elements"] = int(dict_input["num_elements"])
@@ -272,7 +279,8 @@ def convert_from_json_format(dict_input):
     dict_output["correlation"] = int(dict_input["correlation"])
     dict_output["radial_type"] = dict_input["radial_type"]
     dict_output["radial_MLP"] = ast.literal_eval(dict_input["radial_MLP"])
-    dict_output["pair_repulsion"] = ast.literal_eval(dict_input["pair_repulsion"])
+    dict_output["pair_repulsion"] = ast.literal_eval(
+        dict_input["pair_repulsion"])
     dict_output["distance_transform"] = dict_input["distance_transform"]
     dict_output["atomic_inter_scale"] = float(dict_input["atomic_inter_scale"])
     dict_output["atomic_inter_shift"] = float(dict_input["atomic_inter_shift"])
@@ -309,7 +317,8 @@ def get_atomic_energies(E0s, train_collection, z_table) -> dict:
                 )
             except Exception as e:
                 raise RuntimeError(
-                    f"Could not compute average E0s if no training xyz given, error {e} occured"
+                    f"Could not compute average E0s if no training xyz given, error {
+                        e} occured"
                 ) from e
         else:
             if E0s.endswith(".json"):
@@ -375,12 +384,12 @@ def get_loss_fn(
             dipole_weight=dipole_weight,
         )
     elif loss == "energy_forces_dipole":
-            loss_fn_energy = modules.WeightedEnergyForcesNacsDipoleLoss(
-                energy_weight=energy_weight,
-                forces_weight=forces_weight,
-                dipole_weight=dipole_weight,
-                nacs_weight=nacs_weight,
-            )
+        loss_fn_energy = modules.WeightedEnergyForcesNacsDipoleLoss(
+            energy_weight=energy_weight,
+            forces_weight=forces_weight,
+            dipole_weight=dipole_weight,
+            nacs_weight=nacs_weight,
+        )
     else:
         loss_fn = modules.EnergyForcesLoss(
             energy_weight=energy_weight, forces_weight=forces_weight
@@ -412,7 +421,8 @@ class LRScheduler:
         self.scheduler = args.scheduler
         self._optimizer_type = (
             args.optimizer
-        )  # Schedulefree does not need an optimizer but checkpoint handler does.
+            # Schedulefree does not need an optimizer but checkpoint handler does.
+        )
         if args.scheduler == "ExponentialLR":
             self.lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(
                 optimizer=optimizer, gamma=args.lr_scheduler_gamma

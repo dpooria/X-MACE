@@ -21,8 +21,9 @@ Forces = np.ndarray  # [..., 3]
 Stress = np.ndarray  # [6, ], [3,3], [9, ]
 Virials = np.ndarray  # [6, ], [3,3], [9, ]
 Charges = np.ndarray  # [..., 1]
-Nacs = np.ndarray #[...,...,3]
+Nacs = np.ndarray  # [...,...,3]
 Socs = np.ndarray
+Osce = np.ndarray
 Cell = np.ndarray  # [3,3]
 Pbc = tuple  # (3,)
 
@@ -44,6 +45,7 @@ class Configuration:
     pbc: Optional[Pbc] = None
     nacs: Optional[Nacs] = None
     socs: Optional[Socs] = None
+    osce: Optional[Osce] = None
     weight: float = 1.0  # weight of config in loss
     energy_weight: float = 1.0  # weight of config energy in loss
     forces_weight: float = 1.0  # weight of config forces in loss
@@ -52,6 +54,7 @@ class Configuration:
     dipoles_weight: float = 1.0
     nacs_weight: float = 1.0
     socs_weight: float = 1.0
+    osce_weght: float = 1.0
     config_type: Optional[str] = DEFAULT_CONFIG_TYPE  # config_type of config
 
 
@@ -71,7 +74,8 @@ def random_train_valid_split(
     rng.shuffle(indices)
     if len(indices[train_size:]) < 10:
         logging.info(
-            f"Using random {100 * valid_fraction:.0f}% of training set for validation with following indices: {indices[train_size:]}"
+            f"Using random {
+                100 * valid_fraction:.0f}% of training set for validation with following indices: {indices[train_size:]}"
         )
     else:
         # Save indices to file
@@ -80,7 +84,8 @@ def random_train_valid_split(
                 f.write(f"{index}\n")
 
         logging.info(
-            f"Using random {100 * valid_fraction:.0f}% of training set for validation with indices saved in: {work_dir}/valid_indices_{seed}.txt"
+            f"Using random {100 * valid_fraction:.0f}% of training set for validation with indices saved in: {
+                work_dir}/valid_indices_{seed}.txt"
         )
 
     return (
@@ -99,6 +104,7 @@ def config_from_atoms_list(
     nacs_key="REF_nacs",
     charges_key="REF_charges",
     socs_key="REF_socs",
+    osce_key="REF_osce",
     config_type_weights: Dict[str, float] = None,
 ) -> Configurations:
     """Convert list of ase.Atoms into Configurations"""
@@ -117,6 +123,7 @@ def config_from_atoms_list(
                 dipoles_key=dipoles_key,
                 nacs_key=nacs_key,
                 socs_key=socs_key,
+                osce_key=osce_key,
                 charges_key=charges_key,
                 config_type_weights=config_type_weights,
             )
@@ -134,6 +141,7 @@ def config_from_atoms(
     charges_key="REF_charges",
     nacs_key="REF_nacs",
     socs_key="REF_socs",
+    osce_key="REF_osce",
     config_type_weights: Dict[str, float] = None,
 ) -> Configuration:
     """Convert ase.Atoms to Configuration"""
@@ -145,9 +153,13 @@ def config_from_atoms(
     virials = atoms.info.get(virials_key, None)
     nacs = atoms.info.get(nacs_key, None)
     socs = atoms.info.get(socs_key, None)
+    osce = atoms.info.get(osce_key, None)
+    if osce is None:
+        breakpoint()
     dipoles = atoms.info.get(dipoles_key, None)  # Debye
     # Charges default to 0 instead of None if not found
-    charges = atoms.arrays.get(charges_key, np.zeros(len(atoms)))  # atomic unit
+    charges = atoms.arrays.get(
+        charges_key, np.zeros(len(atoms)))  # atomic unit
     atomic_numbers = np.array(
         [ase.data.atomic_numbers[symbol] for symbol in atoms.symbols]
     )
@@ -185,6 +197,8 @@ def config_from_atoms(
     if socs is None:
         socs = np.zeros(3)
         socs_weight = 0.0
+    if osce is None:
+        osce = np.zeros(3)
 
     return Configuration(
         atomic_numbers=atomic_numbers,
@@ -197,6 +211,7 @@ def config_from_atoms(
         charges=charges,
         nacs=nacs,
         socs=socs,
+        osce=osce,
         weight=weight,
         energy_weight=energy_weight,
         forces_weight=forces_weight,
@@ -237,6 +252,7 @@ def load_from_xyz(
     charges_key: str = "REF_charges",
     nacs_key: str = 'REF_nacs',
     socs_key: str = 'REF_socs',
+    osce_key: str = 'REF_osce',
     extract_atomic_energies: bool = False,
     keep_isolated_atoms: bool = False,
 ) -> Tuple[Dict[int, float], Configurations]:
@@ -282,7 +298,8 @@ def load_from_xyz(
 
         for idx, atoms in enumerate(atoms_list):
             isolated_atom_config = (
-                len(atoms) == 1 and atoms.info.get("config_type") == "IsolatedAtom"
+                len(atoms) == 1 and atoms.info.get(
+                    "config_type") == "IsolatedAtom"
             )
             if isolated_atom_config:
                 if energy_key in atoms.info.keys():
@@ -294,7 +311,8 @@ def load_from_xyz(
                         f"Configuration '{idx}' is marked as 'IsolatedAtom' "
                         "but does not contain an energy. Zero energy will be used."
                     )
-                    atomic_energies_dict[atoms.get_atomic_numbers()[0]] = np.zeros(1)
+                    atomic_energies_dict[atoms.get_atomic_numbers()[
+                        0]] = np.zeros(1)
             else:
                 atoms_without_iso_atoms.append(atoms)
 
@@ -313,6 +331,7 @@ def load_from_xyz(
         dipoles_key=dipoles_key,
         nacs_key=nacs_key,
         socs_key=socs_key,
+        osce_key=osce_key,
         charges_key=charges_key,
     )
     return atomic_energies_dict, configs
@@ -332,7 +351,8 @@ def compute_average_E0s(
     for i in range(len_train):
         B[i] = np.mean(collections_train[i].energy)
         for j, z in enumerate(z_table.zs):
-            A[i, j] = np.count_nonzero(collections_train[i].atomic_numbers == z)
+            A[i, j] = np.count_nonzero(
+                collections_train[i].atomic_numbers == z)
     try:
         E0s = np.linalg.lstsq(A, B, rcond=None)[0]
         atomic_energies_dict = {}
@@ -394,6 +414,7 @@ def save_AtomicData_to_HDF5(data, i, h5_file) -> None:
     grp["dipoles"] = data.dipoles
     grp["charges"] = data.charges
     grp["nacs"] = data.nacs
+
 
 def save_configurations_as_HDF5(configurations: Configurations, _, h5_file) -> None:
     grp = h5_file.create_group("config_batch_0")

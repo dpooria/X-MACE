@@ -1,12 +1,12 @@
 from abc import abstractmethod
 from typing import Callable, List, Optional, Tuple, Union
-import time
+# import time
 import numpy as np
 import torch.nn.functional
 from e3nn import nn, o3
 from e3nn.util.jit import compile_mode
 
-from mace.tools.compile import simplify_if_compile
+# from mace.tools.compile import simplify_if_compile
 from mace.tools.scatter import scatter_sum
 
 from .irreps_tools import (
@@ -24,12 +24,13 @@ from .radial import (
 )
 from .symmetric_contraction import SymmetricContraction
 
+
 @compile_mode("script")
 class PermutationInvariantDecoder(torch.nn.Module):
     def __init__(self, latent_dim=16, hidden_dim=128, n_energies=3):
         super().__init__()
 
-        self.matrix_vals = 2*n_energies - 1
+        self.matrix_vals = 2 * n_energies - 1
         self.n_energies = n_energies
         self.latent_dim = latent_dim
 
@@ -43,7 +44,8 @@ class PermutationInvariantDecoder(torch.nn.Module):
             torch.nn.ELU(),
             torch.nn.Linear(hidden_dim, hidden_dim),
             torch.nn.ELU(),
-            torch.nn.Linear(hidden_dim, self.matrix_vals)  # Output layer without activation
+            # Output layer without activation
+            torch.nn.Linear(hidden_dim, self.matrix_vals)
         )
 
     def forward(self, z):
@@ -55,7 +57,8 @@ class PermutationInvariantDecoder(torch.nn.Module):
         for i in range(z.size(0)):
             diag_vals = z[i][:self.n_energies]
             offdiag_vals = z[i][self.n_energies:]
-            matrix = torch.diag(diag_vals) + torch.diag(offdiag_vals, 1) + torch.diag(offdiag_vals, -1)
+            matrix = torch.diag(
+                diag_vals) + torch.diag(offdiag_vals, 1) + torch.diag(offdiag_vals, -1)
             matrices.append(matrix)
 
         # Stack matrices and compute eigenvalues
@@ -65,6 +68,7 @@ class PermutationInvariantDecoder(torch.nn.Module):
         roots, _ = torch.sort(roots, dim=-1)
 
         return roots
+
 
 @compile_mode("script")
 class PermutationInvariantEncoder(torch.nn.Module):
@@ -116,10 +120,12 @@ class LinearNodeEmbeddingBlock(torch.nn.Module):
 class LinearReadoutBlock(torch.nn.Module):
     def __init__(self, irreps_in: o3.Irreps, n_energies: int, compute_nacs: bool, nac_indices: int):
         super().__init__()
-        if compute_nacs == True:
-            self.linear = o3.Linear(irreps_in=irreps_in, irreps_out=o3.Irreps(str(int(n_energies))+"x0e + "+ str(int(nac_indices)) + "x1o"))
+        if compute_nacs:
+            self.linear = o3.Linear(irreps_in=irreps_in, irreps_out=o3.Irreps(
+                str(int(n_energies)) + "x0e + " + str(int(nac_indices)) + "x1o"))
         else:
-            self.linear = o3.Linear(irreps_in=irreps_in, irreps_out=o3.Irreps(str(n_energies)+"x0e"))
+            self.linear = o3.Linear(
+                irreps_in=irreps_in, irreps_out=o3.Irreps(str(n_energies) + "x0e"))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.linear(x)
@@ -132,32 +138,40 @@ class NonLinearReadoutBlock(torch.nn.Module):
     ):
         super().__init__()
         self.hidden_irreps = MLP_irreps
-        self.linear_1 = o3.Linear(irreps_in=irreps_in, irreps_out=self.hidden_irreps)
-        self.non_linearity = nn.Activation(irreps_in=self.hidden_irreps, acts=[gate])
+        self.linear_1 = o3.Linear(
+            irreps_in=irreps_in, irreps_out=self.hidden_irreps)
+        self.non_linearity = nn.Activation(
+            irreps_in=self.hidden_irreps, acts=[gate])
         self.irreps_in = irreps_in
-        if compute_nacs == True:
+        if compute_nacs:
             self.linear_2 = o3.Linear(
-                irreps_in=self.hidden_irreps, irreps_out=o3.Irreps(str(int(n_energies))+"x0e + " + str(int(nac_indices)) + "x1o")
+                irreps_in=self.hidden_irreps, irreps_out=o3.Irreps(
+                    str(int(n_energies)) + "x0e + " + str(int(nac_indices)) + "x1o")
             )
         else:
             self.linear_2 = o3.Linear(
-                irreps_in=self.hidden_irreps, irreps_out=o3.Irreps(str(n_energies)+"x0e")
+                irreps_in=self.hidden_irreps, irreps_out=o3.Irreps(
+                    str(n_energies) + "x0e")
             )
 
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
+    # [n_nodes, irreps]  # [..., ]
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.non_linearity(self.linear_1(x))
         return self.linear_2(x)  # [n_nodes, 1]
+
 
 @compile_mode("script")
 class LinearSocReadoutBlock(torch.nn.Module):
     def __init__(self, irreps_in: o3.Irreps, socs_indices: int):
         super().__init__()
         self.irreps_out = o3.Irreps(str(socs_indices) + "x0e")
-        self.linear = o3.Linear(irreps_in=irreps_in, irreps_out=self.irreps_out)
+        self.linear = o3.Linear(irreps_in=irreps_in,
+                                irreps_out=self.irreps_out)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
+    # [n_nodes, irreps]  # [..., ]
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.linear(x)  # [n_nodes, 1]
+
 
 @compile_mode("script")
 class NonLinearSocReadoutBlock(torch.nn.Module):
@@ -170,10 +184,12 @@ class NonLinearSocReadoutBlock(torch.nn.Module):
         self.irreps_out = o3.Irreps(str(socs_indices) + "x0e")
 
         irreps_scalars = o3.Irreps(
-            [(mul, ir) for mul, ir in MLP_irreps if ir.l == 0 and ir in self.irreps_out]
+            [(mul, ir)
+             for mul, ir in MLP_irreps if ir.l == 0 and ir in self.irreps_out]
         )
         irreps_gated = o3.Irreps(
-            [(mul, ir) for mul, ir in MLP_irreps if ir.l > 0 and ir in self.irreps_out]
+            [(mul, ir)
+             for mul, ir in MLP_irreps if ir.l > 0 and ir in self.irreps_out]
         )
         irreps_gates = o3.Irreps([mul, "0e"] for mul, _ in irreps_gated)
         self.equivariant_nonlin = nn.Gate(
@@ -184,26 +200,32 @@ class NonLinearSocReadoutBlock(torch.nn.Module):
             irreps_gated=irreps_gated,
         )
         self.irreps_nonlin = self.equivariant_nonlin.irreps_in.simplify()
-        self.linear_1 = o3.Linear(irreps_in=irreps_in, irreps_out=self.irreps_nonlin)
+        self.linear_1 = o3.Linear(
+            irreps_in=irreps_in, irreps_out=self.irreps_nonlin)
         self.linear_2 = o3.Linear(
             irreps_in=self.hidden_irreps, irreps_out=self.irreps_out
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
+    # [n_nodes, irreps]  # [..., ]
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.equivariant_nonlin(self.linear_1(x))
         return self.linear_2(x)  # [n_nodes, 1]
+
 
 @compile_mode("script")
 class LinearDipoleReadoutBlock(torch.nn.Module):
     def __init__(self, irreps_in: o3.Irreps, n_energies: int, compute_nacs: bool, nac_indices: int):
         super().__init__()
-        if compute_nacs == True:
-            self.irreps_out = o3.Irreps(str(int(n_energies))+"x0e + " + str(int(nac_indices)) + "x1o")
+        if compute_nacs:
+            self.irreps_out = o3.Irreps(
+                str(int(n_energies)) + "x0e + " + str(int(nac_indices)) + "x1o")
         else:
-            self.irreps_out = o3.Irreps(str(int(n_energies))+"x0e")
-        self.linear = o3.Linear(irreps_in=irreps_in, irreps_out=self.irreps_out)
+            self.irreps_out = o3.Irreps(str(int(n_energies)) + "x0e")
+        self.linear = o3.Linear(irreps_in=irreps_in,
+                                irreps_out=self.irreps_out)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
+    # [n_nodes, irreps]  # [..., ]
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.linear(x)  # [n_nodes, 1]
 
 
@@ -221,15 +243,18 @@ class NonLinearDipoleReadoutBlock(torch.nn.Module):
         super().__init__()
         self.irreps_in = irreps_in
         self.hidden_irreps = MLP_irreps
-        if compute_nacs == True:
-            self.irreps_out = o3.Irreps(str(int(n_energies))+"x0e + " + str(int(nac_indices)) + "x1o")
+        if compute_nacs:
+            self.irreps_out = o3.Irreps(
+                str(int(n_energies)) + "x0e + " + str(int(nac_indices)) + "x1o")
         else:
-            self.irreps_out = o3.Irreps(str(int(n_energies))+"x0e")
+            self.irreps_out = o3.Irreps(str(int(n_energies)) + "x0e")
         irreps_scalars = o3.Irreps(
-            [(mul, ir) for mul, ir in MLP_irreps if ir.l == 0 and ir in self.irreps_out]
+            [(mul, ir)
+             for mul, ir in MLP_irreps if ir.l == 0 and ir in self.irreps_out]
         )
         irreps_gated = o3.Irreps(
-            [(mul, ir) for mul, ir in MLP_irreps if ir.l > 0 and ir in self.irreps_out]
+            [(mul, ir)
+             for mul, ir in MLP_irreps if ir.l > 0 and ir in self.irreps_out]
         )
         irreps_gates = o3.Irreps([mul, "0e"] for mul, _ in irreps_gated)
         self.equivariant_nonlin = nn.Gate(
@@ -240,12 +265,14 @@ class NonLinearDipoleReadoutBlock(torch.nn.Module):
             irreps_gated=irreps_gated,
         )
         self.irreps_nonlin = self.equivariant_nonlin.irreps_in.simplify()
-        self.linear_1 = o3.Linear(irreps_in=irreps_in, irreps_out=self.irreps_nonlin)
+        self.linear_1 = o3.Linear(
+            irreps_in=irreps_in, irreps_out=self.irreps_nonlin)
         self.linear_2 = o3.Linear(
             irreps_in=self.hidden_irreps, irreps_out=self.irreps_out
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # [n_nodes, irreps]  # [..., ]
+    # [n_nodes, irreps]  # [..., ]
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.equivariant_nonlin(self.linear_1(x))
         return self.linear_2(x)  # [n_nodes, 1]
 
@@ -269,7 +296,8 @@ class AtomicEnergiesBlock(torch.nn.Module):
         return torch.matmul(x, self.atomic_energies)
 
     def __repr__(self):
-        formatted_energies = ", ".join([f"{x:.4f}" for x in self.atomic_energies])
+        formatted_energies = ", ".join(
+            [f"{x:.4f}" for x in self.atomic_energies])
         return f"{self.__class__.__name__}(energies=[{formatted_energies}])"
 
 
@@ -412,7 +440,8 @@ class TensorProductWeightsBlock(torch.nn.Module):
 
     def forward(
         self,
-        sender_or_receiver_node_attrs: torch.Tensor,  # assumes that the node attributes are one-hot encoded
+        # assumes that the node attributes are one-hot encoded
+        sender_or_receiver_node_attrs: torch.Tensor,
         edge_feats: torch.Tensor,
     ):
         return torch.einsum(
@@ -421,7 +450,8 @@ class TensorProductWeightsBlock(torch.nn.Module):
 
     def __repr__(self):
         return (
-            f'{self.__class__.__name__}(shape=({", ".join(str(s) for s in self.weights.shape)}), '
+            f'{self.__class__.__name__}(shape=({", ".join(
+                str(s) for s in self.weights.shape)}), '
             f"weights={np.prod(self.weights.shape)})"
         )
 
@@ -823,7 +853,8 @@ class RealAgnosticAttResidualInteractionBlock(InteractionBlock):
         self.reshape = reshape_irreps(self.irreps_out)
 
         # Skip connection.
-        self.skip_linear = o3.Linear(self.node_feats_irreps, self.hidden_irreps)
+        self.skip_linear = o3.Linear(
+            self.node_feats_irreps, self.hidden_irreps)
 
     def forward(
         self,
@@ -877,5 +908,6 @@ class ScaleShiftBlock(torch.nn.Module):
 
     def __repr__(self):
         return (
-            f"{self.__class__.__name__}(scale={self.scale:.6f}, shift={self.shift:.6f})"
+            f"{self.__class__.__name__}(scale={self.scale:.6f}, shift={
+                self.shift:.6f})"
         )

@@ -106,6 +106,7 @@ def run(args: argparse.Namespace) -> None:
                 default_dtype=args.default_dtype,
             )
             model_foundation = calc.models[0]
+            # model_foundation = calc.model
         elif args.foundation_model in ["small_off", "medium_off", "large_off"]:
             model_type = args.foundation_model.split("_")[0]
             logging.info(

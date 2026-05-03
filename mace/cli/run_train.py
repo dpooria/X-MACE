@@ -75,14 +75,16 @@ def run(args: argparse.Namespace) -> None:
 
     # Setup
     tools.set_seeds(args.seed)
-    tools.setup_logger(level=args.log_level, tag=tag, directory=args.log_dir, rank=rank)
+    tools.setup_logger(level=args.log_level, tag=tag,
+                       directory=args.log_dir, rank=rank)
     logging.info("===========VERIFYING SETTINGS===========")
     for message, loglevel in input_log_messages:
         logging.log(level=loglevel, msg=message)
 
     if args.distributed:
         torch.cuda.set_device(local_rank)
-        logging.info(f"Process group initialized: {torch.distributed.is_initialized()}")
+        logging.info(f"Process group initialized: {
+                     torch.distributed.is_initialized()}")
         logging.info(f"Processes: {world_size}")
 
     try:
@@ -97,7 +99,8 @@ def run(args: argparse.Namespace) -> None:
     if args.foundation_model is not None:
         if args.foundation_model in ["small", "medium", "large"]:
             logging.info(
-                f"Using foundation model mace-mp-0 {args.foundation_model} as initial checkpoint."
+                f"Using foundation model mace-mp-0 {
+                    args.foundation_model} as initial checkpoint."
             )
             calc = mace_mp(
                 model=args.foundation_model,
@@ -109,7 +112,8 @@ def run(args: argparse.Namespace) -> None:
         elif args.foundation_model in ["small_off", "medium_off", "large_off"]:
             model_type = args.foundation_model.split("_")[0]
             logging.info(
-                f"Using foundation model mace-off-2023 {model_type} as initial checkpoint. ASL license."
+                f"Using foundation model mace-off-2023 {
+                    model_type} as initial checkpoint. ASL license."
             )
             calc = mace_off(
                 model=model_type,
@@ -119,9 +123,11 @@ def run(args: argparse.Namespace) -> None:
             )
             model_foundation = calc.model
         else:
-            model_foundation = torch.load(args.foundation_model, map_location=device)
+            model_foundation = torch.load(
+                args.foundation_model, map_location=device)
             logging.info(
-                f"Using foundation model {args.foundation_model} as initial checkpoint."
+                f"Using foundation model {
+                    args.foundation_model} as initial checkpoint."
             )
         args.r_max = model_foundation.r_max.item()
 
@@ -163,15 +169,19 @@ def run(args: argparse.Namespace) -> None:
             dipoles_key=args.dipoles_key,
             charges_key=args.charges_key,
             nacs_key=args.nacs_key,
+            socs_key=args.socs_key,
+            osce_key=args.osce_key,
             keep_isolated_atoms=args.keep_isolated_atoms,
         )
         if len(collections.train) < args.batch_size:
             logging.error(
-                f"Batch size ({args.batch_size}) is larger than the number of training data ({len(collections.train)})"
+                f"Batch size ({args.batch_size}) is larger than the number of training data ({
+                    len(collections.train)})"
             )
         if len(collections.valid) < args.valid_batch_size:
             logging.warning(
-                f"Validation batch size ({args.valid_batch_size}) is larger than the number of validation data ({len(collections.valid)})"
+                f"Validation batch size ({args.valid_batch_size}) is larger than the number of validation data ({
+                    len(collections.valid)})"
             )
             args.valid_batch_size = len(collections.valid)
 
@@ -181,7 +191,8 @@ def run(args: argparse.Namespace) -> None:
     # Atomic number table
     # yapf: disable
     if args.atomic_numbers is None:
-        assert args.train_file.endswith(".xyz"), "Must specify atomic_numbers when using .h5 train_file input"
+        assert args.train_file.endswith(
+            ".xyz"), "Must specify atomic_numbers when using .h5 train_file input"
         z_table = tools.get_atomic_number_table_from_zs(
             z
             for configs in (collections.train, collections.valid)
@@ -212,7 +223,8 @@ def run(args: argparse.Namespace) -> None:
                 for z in z_table.zs
             }
             logging.info(
-                f"Using Atomic Energies from foundation model [z, eV]: {', '.join([f'{z}: {atomic_energies_dict[z]}' for z in z_table_foundation.zs])}"
+                f"Using Atomic Energies from foundation model [z, eV]: {
+                    ', '.join([f'{z}: {atomic_energies_dict[z]}' for z in z_table_foundation.zs])}"
             )
         else:
             if args.train_file.endswith(".xyz"):
@@ -220,7 +232,8 @@ def run(args: argparse.Namespace) -> None:
                     args.E0s, collections.train, z_table
                 )
             else:
-                atomic_energies_dict = get_atomic_energies(args.E0s, None, z_table)
+                atomic_energies_dict = get_atomic_energies(
+                    args.E0s, None, z_table)
 
     if args.model == "ExcitedMACE" or args.model == "AutoencoderExcitedMACE":
         atomic_energies = None
@@ -236,22 +249,27 @@ def run(args: argparse.Namespace) -> None:
         )
 
         logging.info(
-            f"Atomic Energies used (z: eV): {{{', '.join([f'{z}: {atomic_energies_dict[z]}' for z in z_table.zs])}}}"
+            f"Atomic Energies used (z: eV): {{{', '.join(
+                [f'{z}: {atomic_energies_dict[z]}' for z in z_table.zs])}}}"
         )
 
     if args.train_file.endswith(".xyz"):
         train_set = [
-            data.AtomicData.from_config(config, z_table=z_table, cutoff=args.r_max)
+            data.AtomicData.from_config(
+                config, z_table=z_table, cutoff=args.r_max)
             for config in collections.train
         ]
 
         valid_set = [
-            data.AtomicData.from_config(config, z_table=z_table, cutoff=args.r_max)
+            data.AtomicData.from_config(
+                config, z_table=z_table, cutoff=args.r_max)
             for config in collections.valid
         ]
     elif args.train_file.endswith(".h5"):
-        train_set = data.HDF5Dataset(args.train_file, r_max=args.r_max, z_table=z_table)
-        valid_set = data.HDF5Dataset(args.valid_file, r_max=args.r_max, z_table=z_table)
+        train_set = data.HDF5Dataset(
+            args.train_file, r_max=args.r_max, z_table=z_table)
+        valid_set = data.HDF5Dataset(
+            args.valid_file, r_max=args.r_max, z_table=z_table)
     else:  # This case would be for when the file path is to a directory of multiple .h5 files
         train_set = data.dataset_from_sharded_hdf5(
             args.train_file, r_max=args.r_max, z_table=z_table
@@ -259,7 +277,7 @@ def run(args: argparse.Namespace) -> None:
         valid_set = data.dataset_from_sharded_hdf5(
             args.valid_file, r_max=args.r_max, z_table=z_table
         )
-    
+
     train_sampler, valid_sampler = None, None
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -306,24 +324,27 @@ def run(args: argparse.Namespace) -> None:
             energy_weight=args.energy_weight,
             forces_weight=args.forces_weight,
             dipoles_weight=args.dipoles_weight,
-            nacs_weight = args.nacs_weight,
-            socs_weight = args.socs_weight
-    )
+            nacs_weight=args.nacs_weight,
+            socs_weight=args.socs_weight,
+            osce_weight=args.osce_weight,
+        )
     elif args.model == "AutoencoderExcitedMACE":
         loss_fn = modules.InvariantsWeightedEnergyForcesNacsDipoleLoss(
             energy_weight=args.energy_weight,
             forces_weight=args.forces_weight,
             dipoles_weight=args.dipoles_weight,
-            nacs_weight = args.nacs_weight,
-            socs_weight = args.socs_weight
+            nacs_weight=args.nacs_weight,
+            socs_weight=args.socs_weight
         )
-    
+
     if args.compute_avg_num_neighbors:
         avg_num_neighbors = modules.compute_avg_num_neighbors(train_loader)
         if args.distributed:
             num_graphs = torch.tensor(len(train_loader.dataset)).to(device)
-            num_neighbors = num_graphs * torch.tensor(avg_num_neighbors).to(device)
-            torch.distributed.all_reduce(num_graphs, op=torch.distributed.ReduceOp.SUM)
+            num_neighbors = num_graphs * \
+                torch.tensor(avg_num_neighbors).to(device)
+            torch.distributed.all_reduce(
+                num_graphs, op=torch.distributed.ReduceOp.SUM)
             torch.distributed.all_reduce(
                 num_neighbors, op=torch.distributed.ReduceOp.SUM
             )
@@ -332,10 +353,12 @@ def run(args: argparse.Namespace) -> None:
             args.avg_num_neighbors = avg_num_neighbors
     if args.avg_num_neighbors < 2 or args.avg_num_neighbors > 100:
         logging.warning(
-            f"Unusual average number of neighbors: {args.avg_num_neighbors:.1f}"
+            f"Unusual average number of neighbors: {
+                args.avg_num_neighbors:.1f}"
         )
     else:
-        logging.info(f"Average number of neighbors: {args.avg_num_neighbors:.1f}")
+        logging.info(f"Average number of neighbors: {
+                     args.avg_num_neighbors:.1f}")
 
     # Selecting outputs
     compute_virials = False
@@ -357,7 +380,8 @@ def run(args: argparse.Namespace) -> None:
     }
 
     logging.info(
-        f"During training the following quantities will be reported: {', '.join([f'{report}' for report, value in output_args.items() if value])}"
+        f"During training the following quantities will be reported: {
+            ', '.join([f'{report}' for report, value in output_args.items() if value])}"
     )
     print(atomic_energies)
     if args.scaling == "no_scaling":
@@ -375,7 +399,8 @@ def run(args: argparse.Namespace) -> None:
         model_config_foundation["num_elements"] = len(z_table)
         args.max_L = model_config_foundation["hidden_irreps"].lmax
         args.num_channels = list(
-            {irrep.mul for irrep in o3.Irreps(model_config_foundation["hidden_irreps"])}
+            {irrep.mul for irrep in o3.Irreps(
+                model_config_foundation["hidden_irreps"])}
         )[0]
         model_config_foundation["atomic_inter_shift"] = (
             model_foundation.scale_shift.shift.item()
@@ -387,33 +412,42 @@ def run(args: argparse.Namespace) -> None:
         args.model = "FoundationMACE"
         model_config = model_config_foundation  # pylint
         logging.info(
-            f"Message passing with {args.num_channels} channels and max_L={args.max_L} ({model_config_foundation['hidden_irreps']})"
+            f"Message passing with {args.num_channels} channels and max_L={
+                args.max_L} ({model_config_foundation['hidden_irreps']})"
         )
         logging.info(
-            f"{model_config_foundation['num_interactions']} layers, each with correlation order: {model_config_foundation['correlation']} (body order: {model_config_foundation['correlation']+1}) and spherical harmonics up to: l={model_config_foundation['max_ell']}"
+            f"{model_config_foundation['num_interactions']} layers, each with correlation order: {model_config_foundation['correlation']} (body order: {
+                model_config_foundation['correlation']+1}) and spherical harmonics up to: l={model_config_foundation['max_ell']}"
         )
         logging.info(
-            f"Radial cutoff: {model_config_foundation['r_max']} Å (total receptive field for each atom: {model_config_foundation['r_max'] * model_config_foundation['num_interactions']} Å)"
+            f"Radial cutoff: {model_config_foundation['r_max']} Å (total receptive field for each atom: {
+                model_config_foundation['r_max'] * model_config_foundation['num_interactions']} Å)"
         )
         logging.info(
-            f"Distance transform for radial basis functions: {model_config_foundation['distance_transform']}"
+            f"Distance transform for radial basis functions: {
+                model_config_foundation['distance_transform']}"
         )
     else:
         logging.info("Building model")
         logging.info(
-            f"Message passing with {args.num_channels} channels and max_L={args.max_L} ({args.hidden_irreps})"
+            f"Message passing with {args.num_channels} channels and max_L={
+                args.max_L} ({args.hidden_irreps})"
         )
         logging.info(
-            f"{args.num_interactions} layers, each with correlation order: {args.correlation} (body order: {args.correlation+1}) and spherical harmonics up to: l={args.max_ell}"
+            f"{args.num_interactions} layers, each with correlation order: {
+                args.correlation} (body order: {args.correlation+1}) and spherical harmonics up to: l={args.max_ell}"
         )
         logging.info(
-            f"{args.num_radial_basis} radial and {args.num_cutoff_basis} basis functions"
+            f"{args.num_radial_basis} radial and {
+                args.num_cutoff_basis} basis functions"
         )
         logging.info(
-            f"Radial cutoff: {args.r_max} Å (total receptive field for each atom: {args.r_max * args.num_interactions} Å)"
+            f"Radial cutoff: {args.r_max} Å (total receptive field for each atom: {
+                args.r_max * args.num_interactions} Å)"
         )
         logging.info(
-            f"Distance transform for radial basis functions: {args.distance_transform}"
+            f"Distance transform for radial basis functions: {
+                args.distance_transform}"
         )
         model_config = dict(
             r_max=args.r_max,
@@ -447,10 +481,12 @@ def run(args: argparse.Namespace) -> None:
             radial_type=args.radial_type,
             compute_nacs=args.compute_nacs,
             compute_socs=args.compute_socs,
+            compute_osce=args.compute_osce,
             soc_num=args.soc_num,
+            osce_num=args.osce_num,
             nac_num=args.nac_num,
         )
-    
+
     elif args.model == "AutoencoderExcitedMACE":
         model = modules.AutoencoderExcitedMACE(
             **model_config,
@@ -473,7 +509,7 @@ def run(args: argparse.Namespace) -> None:
         )
     else:
         raise RuntimeError(f"Unknown model: '{args.model}'")
-    
+
     if args.foundation_model is not None:
         model = load_foundations(
             model,
@@ -482,22 +518,26 @@ def run(args: argparse.Namespace) -> None:
             load_readout=True,
             max_L=args.max_L,
         )
-        
+
     print(model)
     model.to(device)
 
     logging.debug(model)
-    logging.info(f"Total number of parameters: {tools.count_parameters(model)}")
+    logging.info(f"Total number of parameters: {
+                 tools.count_parameters(model)}")
     logging.info("")
     logging.info("===========OPTIMIZER INFORMATION===========")
     logging.info(f"Using {args.optimizer.upper()} as parameter optimizer")
     logging.info(f"Batch size: {args.batch_size}")
     if args.ema:
-        logging.info(f"Using Exponential Moving Average with decay: {args.ema_decay}")
+        logging.info(f"Using Exponential Moving Average with decay: {
+                     args.ema_decay}")
     logging.info(
-        f"Number of gradient updates: {int(args.max_num_epochs*len(collections.train)/args.batch_size)}"
+        f"Number of gradient updates: {
+            int(args.max_num_epochs*len(collections.train)/args.batch_size)}"
     )
-    logging.info(f"Learning rate: {args.lr}, weight decay: {args.weight_decay}")
+    logging.info(f"Learning rate: {args.lr}, weight decay: {
+                 args.weight_decay}")
     logging.info(loss_fn)
 
     # Optimizer
@@ -584,7 +624,7 @@ def run(args: argparse.Namespace) -> None:
             lr=args.lr,
             amsgrad=args.amsgrad,
             betas=(args.beta, 0.999),
-        )    
+        )
 
     optimizer: torch.optim.Optimizer
     if args.optimizer == "adamw":
@@ -596,7 +636,8 @@ def run(args: argparse.Namespace) -> None:
             raise ImportError(
                 "`schedulefree` is not installed. Please install it via `pip install schedulefree` or `pip install mace-torch[schedulefree]`"
             ) from exc
-        _param_options = {k: v for k, v in param_options.items() if k != "amsgrad"}
+        _param_options = {k: v for k,
+                          v in param_options.items() if k != "amsgrad"}
         optimizer = adamw_schedulefree.AdamWScheduleFree(**_param_options)
     else:
         optimizer = torch.optim.Adam(**param_options)
@@ -610,12 +651,13 @@ def run(args: argparse.Namespace) -> None:
     swa: Optional[tools.SWAContainer] = None
     swas = [False]
     if args.swa:
-        assert dipole_only is False, "Stage Two for dipole fitting not implemented"
+        assert args.dipole_only is False, "Stage Two for dipole fitting not implemented"
         swas.append(True)
         if args.start_swa is None:
             args.start_swa = max(1, args.max_num_epochs // 4 * 3)
         logging.info(
-            f"Stage Two will start after {args.start_swa} epochs with loss function:"
+            f"Stage Two will start after {
+                args.start_swa} epochs with loss function:"
         )
         if args.loss == "forces_only":
             raise ValueError("Can not select Stage Two with forces only loss.")
@@ -643,7 +685,8 @@ def run(args: argparse.Namespace) -> None:
                 forces_weight=args.forces_weight,
                 dipole_weight=args.dipoles_weight,
                 nacs_weight=args.nacs_weight,
-                socs_weight=args.socs_weight
+                socs_weight=args.socs_weight,
+                osce_weight=args.osce_weight
             )
         logging.info(loss_fn_energy)
         swa = tools.SWAContainer(
@@ -684,7 +727,8 @@ def run(args: argparse.Namespace) -> None:
 
     ema: Optional[ExponentialMovingAverage] = None
     if args.ema:
-        ema = ExponentialMovingAverage(model.parameters(), decay=args.ema_decay)
+        ema = ExponentialMovingAverage(
+            model.parameters(), decay=args.ema_decay)
     else:
         for group in optimizer.param_groups:
             group["lr"] = args.lr
@@ -753,7 +797,8 @@ def run(args: argparse.Namespace) -> None:
     if args.train_file.endswith(".xyz"):
         for name, subset in collections.tests:
             test_sets[name] = [
-                data.AtomicData.from_config(config, z_table=z_table, cutoff=args.r_max)
+                data.AtomicData.from_config(
+                    config, z_table=z_table, cutoff=args.r_max)
                 for config in subset
             ]
     elif not args.multi_processed_test:
@@ -814,9 +859,11 @@ def run(args: argparse.Namespace) -> None:
             distributed_model = DDP(model, device_ids=[local_rank])
         model_to_evaluate = model if not args.distributed else distributed_model
         if swa_eval:
-            logging.info(f"Loaded Stage two model from epoch {epoch} for evaluation")
+            logging.info(f"Loaded Stage two model from epoch {
+                         epoch} for evaluation")
         else:
-            logging.info(f"Loaded Stage one model from epoch {epoch} for evaluation")
+            logging.info(f"Loaded Stage one model from epoch {
+                         epoch} for evaluation")
 
         for param in model.parameters():
             param.requires_grad = False
@@ -851,7 +898,8 @@ def run(args: argparse.Namespace) -> None:
         if rank == 0:
             # Save entire model
             if swa_eval:
-                model_path = Path(args.checkpoints_dir) / (tag + "_stagetwo.model")
+                model_path = Path(args.checkpoints_dir) / \
+                    (tag + "_stagetwo.model")
             else:
                 model_path = Path(args.checkpoints_dir) / (tag + ".model")
             logging.info(f"Saving model to {model_path}")
@@ -866,13 +914,15 @@ def run(args: argparse.Namespace) -> None:
             }
             if swa_eval:
                 torch.save(
-                    model, Path(args.model_dir) / (args.name + "_stagetwo.model")
+                    model, Path(args.model_dir) /
+                    (args.name + "_stagetwo.model")
                 )
                 try:
                     path_complied = Path(args.model_dir) / (
                         args.name + "_stagetwo_compiled.model"
                     )
-                    logging.info(f"Compiling model, saving metadata {path_complied}")
+                    logging.info(f"Compiling model, saving metadata {
+                                 path_complied}")
                     model_compiled = jit.compile(deepcopy(model))
                     torch.jit.save(
                         model_compiled,
@@ -882,12 +932,14 @@ def run(args: argparse.Namespace) -> None:
                 except Exception as e:  # pylint: disable=W0703
                     pass
             else:
-                torch.save(model, Path(args.model_dir) / (args.name + ".model"))
+                torch.save(model, Path(args.model_dir) /
+                           (args.name + ".model"))
                 try:
                     path_complied = Path(args.model_dir) / (
                         args.name + "_compiled.model"
                     )
-                    logging.info(f"Compiling model, saving metadata to {path_complied}")
+                    logging.info(f"Compiling model, saving metadata to {
+                                 path_complied}")
                     model_compiled = jit.compile(deepcopy(model))
                     torch.jit.save(
                         model_compiled,

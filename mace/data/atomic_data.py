@@ -37,6 +37,7 @@ class AtomicData(torch_geometric.data.Data):
     virials: torch.Tensor
     nacs: torch.Tensor
     socs: torch.Tensor
+    osce: torch.Tensor
     dipole: torch.Tensor
     charges: torch.Tensor
     weight: torch.Tensor
@@ -67,7 +68,8 @@ class AtomicData(torch_geometric.data.Data):
         dipoles: Optional[torch.Tensor],  # [, 3]
         charges: Optional[torch.Tensor],  # [n_nodes, ]
         nacs: Optional[torch.Tensor],
-        socs: Optional[torch.Tensor]
+        socs: Optional[torch.Tensor],
+        osce: Optional[torch.Tensor]
     ):
         # Check shapes
         num_nodes = node_attrs.shape[0]
@@ -113,6 +115,7 @@ class AtomicData(torch_geometric.data.Data):
             "dipoles": dipoles,
             "nacs": nacs,
             "socs": socs,
+            "osce": osce,
             "charges": charges,
         }
         super().__init__(**data)
@@ -124,7 +127,8 @@ class AtomicData(torch_geometric.data.Data):
         edge_index, shifts, unit_shifts = get_neighborhood(
             positions=config.positions, cutoff=cutoff, pbc=config.pbc, cell=config.cell
         )
-        indices = atomic_numbers_to_indices(config.atomic_numbers, z_table=z_table)
+        indices = atomic_numbers_to_indices(
+            config.atomic_numbers, z_table=z_table)
         one_hot = to_one_hot(
             torch.tensor(indices, dtype=torch.long).unsqueeze(-1),
             num_classes=len(z_table),
@@ -163,7 +167,8 @@ class AtomicData(torch_geometric.data.Data):
         )
 
         virials_weight = (
-            torch.tensor(config.virials_weight, dtype=torch.get_default_dtype())
+            torch.tensor(config.virials_weight,
+                         dtype=torch.get_default_dtype())
             if config.virials_weight is not None
             else 1
         )
@@ -175,7 +180,8 @@ class AtomicData(torch_geometric.data.Data):
         )
 
         dipoles_weight = (
-            torch.tensor(config.dipoles_weight, dtype=torch.get_default_dtype())
+            torch.tensor(config.dipoles_weight,
+                         dtype=torch.get_default_dtype())
             if config.dipoles_weight is not None
             else 1
         )
@@ -204,7 +210,8 @@ class AtomicData(torch_geometric.data.Data):
             else None
         )
         dipoles = (
-            torch.tensor(config.dipoles, dtype=torch.get_default_dtype()).unsqueeze(0)
+            torch.tensor(config.dipoles,
+                         dtype=torch.get_default_dtype()).unsqueeze(0)
             if config.dipoles is not None
             else None
         )
@@ -218,6 +225,14 @@ class AtomicData(torch_geometric.data.Data):
             if config.socs is not None
             else None
         )
+        osce = (
+            torch.tensor(config.osce, dtype=torch.get_default_dtype())
+            if config.osce is not None
+            else None
+        )
+        # if config.osce is None:
+        #     print('osce none')
+        #     breakpoint()
         charges = (
             torch.tensor(config.charges, dtype=torch.get_default_dtype())
             if config.charges is not None
@@ -226,9 +241,11 @@ class AtomicData(torch_geometric.data.Data):
 
         return cls(
             edge_index=torch.tensor(edge_index, dtype=torch.long),
-            positions=torch.tensor(config.positions, dtype=torch.get_default_dtype()),
+            positions=torch.tensor(
+                config.positions, dtype=torch.get_default_dtype()),
             shifts=torch.tensor(shifts, dtype=torch.get_default_dtype()),
-            unit_shifts=torch.tensor(unit_shifts, dtype=torch.get_default_dtype()),
+            unit_shifts=torch.tensor(
+                unit_shifts, dtype=torch.get_default_dtype()),
             cell=cell,
             node_attrs=one_hot,
             weight=weight,
@@ -245,6 +262,7 @@ class AtomicData(torch_geometric.data.Data):
             dipoles=dipoles,
             nacs=nacs,
             socs=socs,
+            osce=osce,
             charges=charges,
         )
 

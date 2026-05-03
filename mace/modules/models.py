@@ -35,6 +35,7 @@ from .utils import (
 
 # pylint: disable=C0302
 
+
 @compile_mode("script")
 class MACE(torch.nn.Module):
     def __init__(
@@ -68,7 +69,8 @@ class MACE(torch.nn.Module):
             "r_max", torch.tensor(r_max, dtype=torch.get_default_dtype())
         )
         self.register_buffer(
-            "num_interactions", torch.tensor(num_interactions, dtype=torch.int64)
+            "num_interactions", torch.tensor(
+                num_interactions, dtype=torch.int64)
         )
         if heads is None:
             heads = ["default"]
@@ -77,7 +79,8 @@ class MACE(torch.nn.Module):
             correlation = [correlation] * num_interactions
         # Embedding
         node_attr_irreps = o3.Irreps([(num_elements, (0, 1))])
-        node_feats_irreps = o3.Irreps([(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
+        node_feats_irreps = o3.Irreps(
+            [(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
         self.node_embedding = LinearNodeEmbeddingBlock(
             irreps_in=node_attr_irreps, irreps_out=node_feats_irreps
         )
@@ -90,7 +93,8 @@ class MACE(torch.nn.Module):
         )
         edge_feats_irreps = o3.Irreps(f"{self.radial_embedding.out_dim}x0e")
         if pair_repulsion:
-            self.pair_repulsion_fn = ZBLBasis(r_max=r_max, p=num_polynomial_cutoff)
+            self.pair_repulsion_fn = ZBLBasis(
+                r_max=r_max, p=num_polynomial_cutoff)
             self.pair_repulsion = True
 
         sh_irreps = o3.Irreps.spherical_harmonics(max_ell)
@@ -174,7 +178,8 @@ class MACE(torch.nn.Module):
                 )
             else:
                 self.readouts.append(
-                    LinearReadoutBlock(hidden_irreps, o3.Irreps(f"{len(heads)}x0e"))
+                    LinearReadoutBlock(
+                        hidden_irreps, o3.Irreps(f"{len(heads)}x0e"))
                 )
 
     def forward(
@@ -283,7 +288,8 @@ class MACE(torch.nn.Module):
         contributions = torch.stack(energies, dim=-1)
         total_energy = torch.sum(contributions, dim=-1)  # [n_graphs, ]
         node_energy_contributions = torch.stack(node_energies_list, dim=-1)
-        node_energy = torch.sum(node_energy_contributions, dim=-1)  # [n_nodes, ]
+        node_energy = torch.sum(
+            node_energy_contributions, dim=-1)  # [n_nodes, ]
 
         # Outputs
         forces, virials, stress, hessian = get_outputs(
@@ -450,6 +456,7 @@ class ScaleShiftMACE(MACE):
 
         return output
 
+
 @compile_mode("script")
 class ExcitedMACE(torch.nn.Module):
     def __init__(
@@ -461,7 +468,9 @@ class ExcitedMACE(torch.nn.Module):
         max_ell: int,
         compute_nacs: bool,
         compute_socs: bool,
+        compute_osce: bool,
         soc_num: int,
+        osce_num: int,
         nac_num: int,
         interaction_cls: Type[InteractionBlock],
         interaction_cls_first: Type[InteractionBlock],
@@ -487,7 +496,8 @@ class ExcitedMACE(torch.nn.Module):
             "r_max", torch.tensor(r_max, dtype=torch.get_default_dtype())
         )
         self.register_buffer(
-            "num_interactions", torch.tensor(num_interactions, dtype=torch.int64)
+            "num_interactions", torch.tensor(
+                num_interactions, dtype=torch.int64)
         )
 
         self.n_energies = n_energies
@@ -496,7 +506,8 @@ class ExcitedMACE(torch.nn.Module):
             correlation = [correlation] * num_interactions
         # Embedding
         node_attr_irreps = o3.Irreps([(num_elements, (0, 1))])
-        node_feats_irreps = o3.Irreps([(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
+        node_feats_irreps = o3.Irreps(
+            [(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
         self.node_embedding = LinearNodeEmbeddingBlock(
             irreps_in=node_attr_irreps, irreps_out=node_feats_irreps
         )
@@ -509,7 +520,8 @@ class ExcitedMACE(torch.nn.Module):
         )
         edge_feats_irreps = o3.Irreps(f"{self.radial_embedding.out_dim}x0e")
         if pair_repulsion:
-            self.pair_repulsion_fn = ZBLBasis(r_max=r_max, p=num_polynomial_cutoff)
+            self.pair_repulsion_fn = ZBLBasis(
+                r_max=r_max, p=num_polynomial_cutoff)
             self.pair_repulsion = True
 
         sh_irreps = o3.Irreps.spherical_harmonics(max_ell)
@@ -536,8 +548,10 @@ class ExcitedMACE(torch.nn.Module):
         self.interactions = torch.nn.ModuleList([inter])
 
         self.compute_socs = compute_socs
+        self.compute_osce = compute_osce
         self.compute_nacs = compute_nacs
         self.soc_indices = soc_num
+        self.osce_indices = osce_num
         self.nac_indices = nac_num
 
         # Use the appropriate self connection at the first layer for proper E0
@@ -558,10 +572,18 @@ class ExcitedMACE(torch.nn.Module):
         self.readouts = torch.nn.ModuleList()
         self.socs_readouts = torch.nn.ModuleList()
         if self.compute_socs:
-            self.socs_readouts.append(LinearSocReadoutBlock(hidden_irreps, self.soc_indices))
+            self.socs_readouts.append(LinearSocReadoutBlock(
+                hidden_irreps, self.soc_indices))
         else:
             self.socs_readouts.append(None)
-        self.readouts.append(LinearReadoutBlock(hidden_irreps, n_energies, compute_nacs, self.nac_indices))
+        self.osce_readouts = torch.nn.ModuleList()
+        if self.compute_osce:
+            self.osce_readouts.append(LinearSocReadoutBlock(
+                hidden_irreps, self.osce_indices))
+        else:
+            self.osce_readouts.append(None)
+        self.readouts.append(LinearReadoutBlock(
+            hidden_irreps, n_energies, compute_nacs, self.nac_indices))
 
         for i in range(num_interactions - 1):
             if i == num_interactions - 2:
@@ -590,18 +612,32 @@ class ExcitedMACE(torch.nn.Module):
             )
             self.products.append(prod)
             if i == num_interactions - 2:
-                self.readouts.append(NonLinearReadoutBlock(hidden_irreps_out, MLP_irreps, gate, n_energies, compute_nacs, self.nac_indices))
+                self.readouts.append(NonLinearReadoutBlock(
+                    hidden_irreps_out, MLP_irreps, gate, n_energies, compute_nacs, self.nac_indices))
                 if self.compute_socs:
-                    self.socs_readouts.append(NonLinearSocReadoutBlock(hidden_irreps_out, MLP_irreps, gate, self.soc_indices))
+                    self.socs_readouts.append(NonLinearSocReadoutBlock(
+                        hidden_irreps_out, MLP_irreps, gate, self.soc_indices))
                 else:
                     self.socs_readouts.append(None)
+                if self.compute_osce:
+                    self.osce_readouts.append(NonLinearSocReadoutBlock(
+                        hidden_irreps_out, MLP_irreps, gate, self.osce_indices))
+                else:
+                    self.osce_readouts.append(None)
             else:
-                self.readouts.append(LinearReadoutBlock(hidden_irreps, n_energies, compute_nacs, self.nac_indices))
+                self.readouts.append(LinearReadoutBlock(
+                    hidden_irreps, n_energies, compute_nacs, self.nac_indices))
                 if self.compute_socs:
-                    self.socs_readouts.append(LinearSocReadoutBlock(hidden_irreps, self.soc_indices))
+                    self.socs_readouts.append(LinearSocReadoutBlock(
+                        hidden_irreps, self.soc_indices))
                 else:
                     self.socs_readouts.append(None)
-        
+                if self.compute_osce:
+                    self.osce_readouts.append(LinearSocReadoutBlock(
+                        hidden_irreps, self.osce_indices))
+                else:
+                    self.osce_readouts.append(None)
+
     def forward(
         self,
         data: Dict[str, torch.Tensor],
@@ -640,13 +676,16 @@ class ExcitedMACE(torch.nn.Module):
         pair_node_energy = torch.zeros_like(node_e0)
         pair_energy = torch.zeros_like(e0)
         # Interactions
-        energies = [e0.unsqueeze(-1).expand(-1, self.n_energies), pair_energy.unsqueeze(-1).expand(-1, self.n_energies)]
-        node_energies_list = [node_e0.unsqueeze(-1).expand(-1, self.n_energies), pair_node_energy.unsqueeze(-1).expand(-1, self.n_energies)]
+        energies = [e0.unsqueeze(-1).expand(-1, self.n_energies),
+                    pair_energy.unsqueeze(-1).expand(-1, self.n_energies)]
+        node_energies_list = [node_e0.unsqueeze(-1).expand(-1, self.n_energies),
+                              pair_node_energy.unsqueeze(-1).expand(-1, self.n_energies)]
         node_feats_list = []
         node_nacs_list = []
         node_socs_list = []
-        for j, (interaction, product, readout, soc_readout) in enumerate(zip(
-            self.interactions, self.products, self.readouts, self.socs_readouts,
+        node_osce_list = []
+        for j, (interaction, product, readout, soc_readout, osce_readout) in enumerate(zip(
+            self.interactions, self.products, self.readouts, self.socs_readouts, self.osce_readouts,
         )):
             node_feats, sc = interaction(
                 node_attrs=data["node_attrs"],
@@ -662,10 +701,13 @@ class ExcitedMACE(torch.nn.Module):
             )
             node_feats_list.append(node_feats)
             node_output = readout(node_feats).squeeze(-1)
-            node_energies = torch.transpose(node_output[:, :self.n_energies], 0, 1)
+            node_energies = torch.transpose(
+                node_output[:, :self.n_energies], 0, 1)
             if self.compute_nacs:
-                node_nacs = node_output[:, self.n_energies:self.n_energies + 3*self.nac_indices]
-                node_nacs_list.append(node_nacs.reshape(node_nacs.shape[0], self.nac_indices, 3))
+                node_nacs = node_output[:,
+                                        self.n_energies:self.n_energies + 3 * self.nac_indices]
+                node_nacs_list.append(node_nacs.reshape(
+                    node_nacs.shape[0], self.nac_indices, 3))
             energy = scatter_sum(
                 src=node_energies, index=data["batch"], dim=-1, dim_size=num_graphs
             )  # [n_graphs,]
@@ -679,6 +721,13 @@ class ExcitedMACE(torch.nn.Module):
                 )  # [n_graphs,]
 
                 node_socs_list.append(soc_output)
+            if self.compute_osce:
+                osce_output = osce_readout(node_feats)
+                osce_output = scatter_sum(
+                    src=osce_output, index=data["batch"], dim=0, dim_size=num_graphs
+                )  # [n_graphs,]
+
+                node_osce_list.append(osce_output)
 
         if self.compute_socs:
             soc_contributions = torch.stack(node_socs_list, dim=1)
@@ -686,6 +735,11 @@ class ExcitedMACE(torch.nn.Module):
         else:
             total_socs = torch.tensor([])
 
+        if self.compute_osce:
+            osce_contributions = torch.stack(node_osce_list, dim=1)
+            total_osce = torch.sum(osce_contributions, dim=1)
+        else:
+            total_osce = torch.tensor([])
         # Concatenate node features
         node_feats_out = torch.cat(node_feats_list, dim=-1)
 
@@ -693,7 +747,8 @@ class ExcitedMACE(torch.nn.Module):
         contributions = torch.stack(energies, dim=1)
         total_energy = torch.sum(contributions, dim=1)  # [n_graphs, ]
         node_energy_contributions = torch.stack(node_energies_list, dim=1)
-        node_energy = torch.sum(node_energy_contributions, dim=1)  # [n_nodes, ]
+        node_energy = torch.sum(
+            node_energy_contributions, dim=1)  # [n_nodes, ]
 
         if self.compute_nacs:
             nacs_contributions = torch.stack(node_nacs_list, dim=1)
@@ -720,6 +775,7 @@ class ExcitedMACE(torch.nn.Module):
             "contributions": contributions,
             "nacs": total_nacs,
             "socs": total_socs,
+            "osce": total_osce,
             "dipoles": torch.tensor([]),
             "forces": forces,
             "virials": virials,
@@ -768,7 +824,8 @@ class AutoencoderExcitedMACE(torch.nn.Module):
             "r_max", torch.tensor(r_max, dtype=torch.get_default_dtype())
         )
         self.register_buffer(
-            "num_interactions", torch.tensor(num_interactions, dtype=torch.int64)
+            "num_interactions", torch.tensor(
+                num_interactions, dtype=torch.int64)
         )
 
         self.n_energies = n_energies
@@ -778,7 +835,8 @@ class AutoencoderExcitedMACE(torch.nn.Module):
             correlation = [correlation] * num_interactions
         # Embedding
         node_attr_irreps = o3.Irreps([(num_elements, (0, 1))])
-        node_feats_irreps = o3.Irreps([(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
+        node_feats_irreps = o3.Irreps(
+            [(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
         self.node_embedding = LinearNodeEmbeddingBlock(
             irreps_in=node_attr_irreps, irreps_out=node_feats_irreps
         )
@@ -795,12 +853,15 @@ class AutoencoderExcitedMACE(torch.nn.Module):
         self.soc_indices = soc_num
         self.nac_indices = nac_num
 
-        self.perm_encoder = PermutationInvariantEncoder(latent_dim=num_permutational_invariant)
-        self.perm_decoder = PermutationInvariantDecoder(latent_dim=num_permutational_invariant, n_energies=n_energies)
+        self.perm_encoder = PermutationInvariantEncoder(
+            latent_dim=num_permutational_invariant)
+        self.perm_decoder = PermutationInvariantDecoder(
+            latent_dim=num_permutational_invariant, n_energies=n_energies)
 
         edge_feats_irreps = o3.Irreps(f"{self.radial_embedding.out_dim}x0e")
         if pair_repulsion:
-            self.pair_repulsion_fn = ZBLBasis(r_max=r_max, p=num_polynomial_cutoff)
+            self.pair_repulsion_fn = ZBLBasis(
+                r_max=r_max, p=num_polynomial_cutoff)
             self.pair_repulsion = True
 
         sh_irreps = o3.Irreps.spherical_harmonics(max_ell)
@@ -844,14 +905,17 @@ class AutoencoderExcitedMACE(torch.nn.Module):
 
         self.readouts = torch.nn.ModuleList()
         if self.compute_socs:
-            self.socs_readouts.append(LinearSocReadoutBlock(hidden_irreps, self.soc_indices))
+            self.socs_readouts.append(LinearSocReadoutBlock(
+                hidden_irreps, self.soc_indices))
         else:
             self.socs_readouts.append(None)
 
-        self.readouts.append(LinearReadoutBlock(hidden_irreps, n_energies, compute_nacs=compute_nacs, nac_indices=self.nac_indices))
+        self.readouts.append(LinearReadoutBlock(
+            hidden_irreps, n_energies, compute_nacs=compute_nacs, nac_indices=self.nac_indices))
 
         self.invariant_readouts = torch.nn.ModuleList()
-        self.invariant_readouts.append(LinearReadoutBlock(hidden_irreps, num_permutational_invariant, compute_nacs=False, nac_indices=0))
+        self.invariant_readouts.append(LinearReadoutBlock(
+            hidden_irreps, num_permutational_invariant, compute_nacs=False, nac_indices=0))
 
         for i in range(num_interactions - 1):
             if i == num_interactions - 2:
@@ -880,19 +944,24 @@ class AutoencoderExcitedMACE(torch.nn.Module):
             )
             self.products.append(prod)
             if i == num_interactions - 2:
-                self.readouts.append(NonLinearReadoutBlock(hidden_irreps_out, MLP_irreps, gate, n_energies, compute_nacs, self.nac_indices))
+                self.readouts.append(NonLinearReadoutBlock(
+                    hidden_irreps_out, MLP_irreps, gate, n_energies, compute_nacs, self.nac_indices))
                 if self.compute_socs:
-                    self.socs_readouts.append(NonLinearSocReadoutBlock(hidden_irreps_out, MLP_irreps, gate, self.soc_indices))
+                    self.socs_readouts.append(NonLinearSocReadoutBlock(
+                        hidden_irreps_out, MLP_irreps, gate, self.soc_indices))
                 else:
                     self.socs_readouts.append(None)
             else:
-                self.readouts.append(LinearReadoutBlock(hidden_irreps, n_energies, compute_nacs, self.nac_indices))
+                self.readouts.append(LinearReadoutBlock(
+                    hidden_irreps, n_energies, compute_nacs, self.nac_indices))
                 if self.compute_socs:
-                    self.socs_readouts.append(LinearSocReadoutBlock(hidden_irreps, self.soc_indices))
+                    self.socs_readouts.append(LinearSocReadoutBlock(
+                        hidden_irreps, self.soc_indices))
                 else:
                     self.socs_readouts.append(None)
 
-            self.invariant_readouts.append(NonLinearReadoutBlock(hidden_irreps_out, MLP_irreps, gate, num_permutational_invariant, compute_nacs=False, nac_indices=0))
+            self.invariant_readouts.append(NonLinearReadoutBlock(
+                hidden_irreps_out, MLP_irreps, gate, num_permutational_invariant, compute_nacs=False, nac_indices=0))
 
     def forward(
         self,
@@ -929,11 +998,12 @@ class AutoencoderExcitedMACE(torch.nn.Module):
         edge_feats = self.radial_embedding(
             lengths, data["node_attrs"], data["edge_index"], self.atomic_numbers
         )
-        pair_node_energy = torch.zeros_like(node_e0)
+        # pair_node_energy = torch.zeros_like(node_e0)
         pair_energy = torch.zeros_like(e0)
 
         # Interactions
-        energies = [e0.unsqueeze(-1).expand(-1, self.n_energies), pair_energy.unsqueeze(-1).expand(-1, self.n_energies)]
+        energies = [e0.unsqueeze(-1).expand(-1, self.n_energies),
+                    pair_energy.unsqueeze(-1).expand(-1, self.n_energies)]
         node_feats_list = []
         invariant_contributions = []
         node_socs_list = []
@@ -958,14 +1028,18 @@ class AutoencoderExcitedMACE(torch.nn.Module):
             node_feats_list.append(node_feats)
             node_output = readout(node_feats).squeeze(-1)
             node_invariant_output = invariant_readout(node_feats).squeeze(-1)
-            node_energies = torch.transpose(node_output[:, :self.n_energies], 0, 1)
+            node_energies = torch.transpose(
+                node_output[:, :self.n_energies], 0, 1)
 
             if self.compute_nacs:
-                node_nacs = node_output[:, self.n_energies:self.n_energies + 3*self.nac_indices]
+                node_nacs = node_output[:,
+                                        self.n_energies:self.n_energies + 3 * self.nac_indices]
 
-                node_nacs_list.append(node_nacs.reshape(node_nacs.shape[0], self.nac_indices, 3))
-            
-            node_invariant_output = torch.transpose(node_invariant_output, 0, 1)
+                node_nacs_list.append(node_nacs.reshape(
+                    node_nacs.shape[0], self.nac_indices, 3))
+
+            node_invariant_output = torch.transpose(
+                node_invariant_output, 0, 1)
             energy = scatter_sum(
                 src=node_energies, index=data["batch"], dim=-1, dim_size=num_graphs
             )  # [n_graphs,]
@@ -994,16 +1068,18 @@ class AutoencoderExcitedMACE(torch.nn.Module):
         node_feats_out = torch.cat(node_feats_list, dim=-1)
 
         invariant_contributions = torch.stack(invariant_contributions, dim=1)
-        invariant_vals = torch.sum(invariant_contributions, dim=1)  # [n_graphs, ]
+        invariant_vals = torch.sum(
+            invariant_contributions, dim=1)  # [n_graphs, ]
         invariant_vals = torch.transpose(invariant_vals, 0, 1)
-        decoded_vals = self.perm_decoder(invariant_vals) + e0.unsqueeze(-1).expand(-1, self.n_energies) + pair_energy.unsqueeze(-1).expand(-1, self.n_energies)
-        
+        decoded_vals = self.perm_decoder(invariant_vals) + e0.unsqueeze(-1).expand(
+            -1, self.n_energies) + pair_energy.unsqueeze(-1).expand(-1, self.n_energies)
+
         if self.compute_nacs:
             nacs_contributions = torch.stack(node_nacs_list, dim=1)
             total_nacs = torch.sum(nacs_contributions, dim=1)  # [n_graphs, ]
         else:
             total_nacs = torch.tensor([])
-        
+
         # Outputs
         forces, virials, stress, hessian = get_outputs(
             energy=decoded_vals,
