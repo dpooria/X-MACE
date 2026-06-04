@@ -154,8 +154,8 @@ def config_from_atoms(
     nacs = atoms.info.get(nacs_key, None)
     socs = atoms.info.get(socs_key, None)
     osce = atoms.info.get(osce_key, None)
-    if osce is None:
-        breakpoint()
+    # if osce is None:
+    #     breakpoint()
     dipoles = atoms.info.get(dipoles_key, None)  # Debye
     # Charges default to 0 instead of None if not found
     charges = atoms.arrays.get(
