@@ -16,7 +16,8 @@ def load_foundations(
     Load the foundations of a model into a model for fine-tuning.
     """
     assert model_foundations.r_max == model.r_max
-    z_table = AtomicNumberTable([int(z) for z in model_foundations.atomic_numbers])
+    z_table = AtomicNumberTable([int(z)
+                                for z in model_foundations.atomic_numbers])
     new_z_table = table
     num_species_foundations = len(z_table.zs)
     num_channels_foundation = (
@@ -127,7 +128,9 @@ def load_foundations(
         model.products[i].linear.weight = torch.nn.Parameter(
             model_foundations.products[i].linear.weight.clone()
         )
-    
-    model.scale_shift = model_foundations.scale_shift
+
+    # model.scale_shift = model_foundations.scale_shift
+    if hasattr(model_foundations, 'scale_shift'):
+        model.scale_shift = model_foundations.scale_shift
 
     return model

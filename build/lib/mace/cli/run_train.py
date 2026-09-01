@@ -120,7 +120,7 @@ def run(args: argparse.Namespace) -> None:
             )
             model_foundation = calc.model
         else:
-            model_foundation = torch.load(args.foundation_model, map_location=device)
+            model_foundation = torch.load(args.foundation_model, map_location=device, weights_only=False)
             logging.info(
                 f"Using foundation model {args.foundation_model} as initial checkpoint."
             )

@@ -141,6 +141,15 @@ def run(args: argparse.Namespace) -> None:
         if args.return_contributions:
             atoms.info[args.info_prefix + "BO_contributions"] = contributions[i]
 
+    # --- START X-MACE 3D ARRAY FIX ---
+    for atoms in atoms_list:
+        for key in list(atoms.arrays.keys()):
+            val = atoms.arrays[key]
+            if val.ndim > 2:
+                # Flatten 3D arrays (N, States, 3) to 2D arrays (N, States*3)
+                # so ASE can write them as flat columns
+                atoms.arrays[key] = val.reshape(val.shape[0], -1)
+    # --- END X-MACE 3D ARRAY FIX ---
     # Write atoms to output path
     ase.io.write(args.output, images=atoms_list, format="extxyz")
 
