@@ -213,6 +213,77 @@ class NonLinearSocReadoutBlock(torch.nn.Module):
 
 
 @compile_mode("script")
+class LinearOsceReadoutBlock(torch.nn.Module):
+    def __init__(
+        self,
+        irreps_in: o3.Irreps,
+        osce_indices: int,
+    ):
+        super().__init__()
+
+        self.irreps_in = irreps_in
+        self.irreps_out = o3.Irreps(f"{osce_indices}x0e")
+
+        self.linear = o3.Linear(
+            irreps_in=self.irreps_in,
+            irreps_out=self.irreps_out,
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.linear(x)
+
+
+@compile_mode("script")
+class NonLinearOsceReadoutBlock(torch.nn.Module):
+    def __init__(
+        self,
+        irreps_in: o3.Irreps,
+        MLP_irreps: o3.Irreps,
+        gate: Optional[Callable],
+        osce_indices: int,
+    ):
+        super().__init__()
+
+        self.irreps_in = irreps_in
+        self.irreps_out = o3.Irreps(f"{osce_indices}x0e")
+
+        # Oscillator strengths are invariant scalars, so the readout MLP
+        # only needs even scalar (0e) channels.
+        hidden_irreps = o3.Irreps(
+            [
+                (mul, ir)
+                for mul, ir in MLP_irreps
+                if ir == o3.Irrep("0e")
+            ]
+        )
+
+        self.equivariant_nonlin = nn.Gate(
+            irreps_scalars=hidden_irreps,
+            act_scalars=[gate for _, _ in hidden_irreps],
+            irreps_gates=o3.Irreps(""),
+            act_gates=[],
+            irreps_gated=o3.Irreps(""),
+        )
+
+        self.irreps_nonlin = self.equivariant_nonlin.irreps_in.simplify()
+
+        self.linear_1 = o3.Linear(
+            irreps_in=self.irreps_in,
+            irreps_out=self.irreps_nonlin,
+        )
+
+        self.linear_2 = o3.Linear(
+            irreps_in=self.equivariant_nonlin.irreps_out,
+            irreps_out=self.irreps_out,
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.linear_1(x)
+        x = self.equivariant_nonlin(x)
+        return self.linear_2(x)
+
+
+@compile_mode("script")
 class LinearDipoleReadoutBlock(torch.nn.Module):
     def __init__(self, irreps_in: o3.Irreps, n_energies: int, compute_nacs: bool, nac_indices: int):
         super().__init__()

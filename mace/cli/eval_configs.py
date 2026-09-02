@@ -17,7 +17,8 @@ from mace.tools import torch_geometric, torch_tools, utils
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--configs", help="path to XYZ configurations", required=True)
+    parser.add_argument(
+        "--configs", help="path to XYZ configurations", required=True)
     parser.add_argument("--model", help="path to model", required=True)
     parser.add_argument("--output", help="output path", required=True)
     parser.add_argument(
@@ -34,13 +35,15 @@ def parse_args() -> argparse.Namespace:
         choices=["float32", "float64"],
         default="float64",
     )
-    parser.add_argument("--batch_size", help="batch size", type=int, default=64)
+    parser.add_argument("--batch_size", help="batch size",
+                        type=int, default=64)
     parser.add_argument(
         "--compute_stress",
         help="compute stress",
         action="store_true",
         default=False,
     )
+    parser.add_argument("--compute_osce", action="store_true")
     parser.add_argument(
         "--return_contributions",
         help="model outputs energy contributions for each body order, only supported for MACE, not ScaleShiftMACE",
@@ -67,7 +70,8 @@ def run(args: argparse.Namespace) -> None:
     device = torch_tools.init_device(args.device)
 
     # Load model
-    model = torch.load(f=args.model, map_location=args.device, weights_only=False)
+    model = torch.load(
+        f=args.model, map_location=args.device, weights_only=False)
     model = model.to(
         args.device
     )  # shouldn't be necessary but seems to help with CUDA problems
@@ -95,6 +99,7 @@ def run(args: argparse.Namespace) -> None:
 
     # Collect data
     energies_list = []
+    osce_list = []
     contributions_list = []
     stresses_list = []
     forces_collection = []
@@ -105,9 +110,12 @@ def run(args: argparse.Namespace) -> None:
         energies_list.append(torch_tools.to_numpy(output["energy"]))
         if args.compute_stress:
             stresses_list.append(torch_tools.to_numpy(output["stress"]))
+        if args.compute_osce:
+            osce_list.append(torch_tools.to_numpy(output["osce"]))
 
         if args.return_contributions:
-            contributions_list.append(torch_tools.to_numpy(output["contributions"]))
+            contributions_list.append(
+                torch_tools.to_numpy(output["contributions"]))
 
         forces = np.split(
             torch_tools.to_numpy(output["forces"]),
@@ -125,6 +133,10 @@ def run(args: argparse.Namespace) -> None:
         stresses = np.concatenate(stresses_list, axis=0)
         assert len(atoms_list) == stresses.shape[0]
 
+    if args.compute_osce:
+        osces = np.concatenate(osce_list, axis=0)
+        assert len(atoms_list) == osces.shape[0]
+
     if args.return_contributions:
         contributions = np.concatenate(contributions_list, axis=0)
         assert len(atoms_list) == contributions.shape[0]
@@ -138,8 +150,12 @@ def run(args: argparse.Namespace) -> None:
         if args.compute_stress:
             atoms.info[args.info_prefix + "stress"] = stresses[i]
 
+        if args.compute_osce:
+            atoms.info[args.info_prefix + "osce"] = osces[i]
+
         if args.return_contributions:
-            atoms.info[args.info_prefix + "BO_contributions"] = contributions[i]
+            atoms.info[args.info_prefix +
+                       "BO_contributions"] = contributions[i]
 
     # --- START X-MACE 3D ARRAY FIX ---
     for atoms in atoms_list:

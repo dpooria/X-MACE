@@ -1,11 +1,9 @@
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Callable, Dict, List, Optional, Type, Union
 
 import numpy as np
 import torch
 from e3nn import o3
 from e3nn.util.jit import compile_mode
-import time
-from mace.data import AtomicData
 from mace.modules.radial import ZBLBasis
 from mace.tools.scatter import scatter_sum
 
@@ -15,11 +13,13 @@ from .blocks import (
     InteractionBlock,
     LinearDipoleReadoutBlock,
     LinearNodeEmbeddingBlock,
+    LinearOsceReadoutBlock,
     LinearReadoutBlock,
     NonLinearDipoleReadoutBlock,
     NonLinearReadoutBlock,
     LinearSocReadoutBlock,
     NonLinearSocReadoutBlock,
+    NonLinearOsceReadoutBlock,
     RadialEmbeddingBlock,
     ScaleShiftBlock,
     PermutationInvariantDecoder,
@@ -578,7 +578,7 @@ class ExcitedMACE(torch.nn.Module):
             self.socs_readouts.append(None)
         self.osce_readouts = torch.nn.ModuleList()
         if self.compute_osce:
-            self.osce_readouts.append(LinearSocReadoutBlock(
+            self.osce_readouts.append(LinearOsceReadoutBlock(
                 hidden_irreps, self.osce_indices))
         else:
             self.osce_readouts.append(None)
@@ -620,7 +620,7 @@ class ExcitedMACE(torch.nn.Module):
                 else:
                     self.socs_readouts.append(None)
                 if self.compute_osce:
-                    self.osce_readouts.append(NonLinearSocReadoutBlock(
+                    self.osce_readouts.append(NonLinearOsceReadoutBlock(
                         hidden_irreps_out, MLP_irreps, gate, self.osce_indices))
                 else:
                     self.osce_readouts.append(None)
@@ -633,7 +633,7 @@ class ExcitedMACE(torch.nn.Module):
                 else:
                     self.socs_readouts.append(None)
                 if self.compute_osce:
-                    self.osce_readouts.append(LinearSocReadoutBlock(
+                    self.osce_readouts.append(LinearOsceReadoutBlock(
                         hidden_irreps, self.osce_indices))
                 else:
                     self.osce_readouts.append(None)
@@ -676,8 +676,11 @@ class ExcitedMACE(torch.nn.Module):
         pair_node_energy = torch.zeros_like(node_e0)
         pair_energy = torch.zeros_like(e0)
         # Interactions
-        energies = [e0.unsqueeze(-1).expand(-1, self.n_energies),
-                    pair_energy.unsqueeze(-1).expand(-1, self.n_energies)]
+        # energies = [e0.unsqueeze(-1).expand(-1, self.n_energies),
+        #             pair_energy.unsqueeze(-1).expand(-1, self.n_energies)]
+        energies = [
+            pair_energy.unsqueeze(-1).expand(-1, self.n_energies),
+        ]  # predict excitation energies only
         node_energies_list = [node_e0.unsqueeze(-1).expand(-1, self.n_energies),
                               pair_node_energy.unsqueeze(-1).expand(-1, self.n_energies)]
         node_feats_list = []
@@ -700,7 +703,7 @@ class ExcitedMACE(torch.nn.Module):
                 node_attrs=data["node_attrs"],
             )
             node_feats_list.append(node_feats)
-            node_output = readout(node_feats).squeeze(-1)
+            node_output = readout(node_feats)
             node_energies = torch.transpose(
                 node_output[:, :self.n_energies], 0, 1)
             if self.compute_nacs:
@@ -738,6 +741,7 @@ class ExcitedMACE(torch.nn.Module):
         if self.compute_osce:
             osce_contributions = torch.stack(node_osce_list, dim=1)
             total_osce = torch.sum(osce_contributions, dim=1)
+            total_osce = torch.nn.functional.softplus(total_osce)
         else:
             total_osce = torch.tensor([])
         # Concatenate node features
@@ -1026,7 +1030,7 @@ class AutoencoderExcitedMACE(torch.nn.Module):
                 node_attrs=data["node_attrs"],
             )
             node_feats_list.append(node_feats)
-            node_output = readout(node_feats).squeeze(-1)
+            node_output = readout(node_feats)
             node_invariant_output = invariant_readout(node_feats).squeeze(-1)
             node_energies = torch.transpose(
                 node_output[:, :self.n_energies], 0, 1)
