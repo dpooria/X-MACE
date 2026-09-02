@@ -801,7 +801,9 @@ class AutoencoderExcitedMACE(torch.nn.Module):
         n_energies: int,
         compute_nacs: bool,
         compute_socs: bool,
+        compute_osce: bool,
         soc_num: int,
+        osce_num: int,
         nac_num: int,
         max_ell: int,
         interaction_cls: Type[InteractionBlock],
@@ -854,8 +856,10 @@ class AutoencoderExcitedMACE(torch.nn.Module):
 
         self.compute_socs = compute_socs
         self.compute_nacs = compute_nacs
+        self.compute_osce = compute_osce
         self.soc_indices = soc_num
         self.nac_indices = nac_num
+        self.osce_indices = osce_num
 
         self.perm_encoder = PermutationInvariantEncoder(
             latent_dim=num_permutational_invariant)
@@ -917,6 +921,13 @@ class AutoencoderExcitedMACE(torch.nn.Module):
         self.readouts.append(LinearReadoutBlock(
             hidden_irreps, n_energies, compute_nacs=compute_nacs, nac_indices=self.nac_indices))
 
+        self.osce_readouts = torch.nn.ModuleList()
+        if self.compute_osce:
+            self.osce_readouts.append(LinearOsceReadoutBlock(
+                hidden_irreps, self.osce_indices))
+        else:
+            self.osce_readouts.append(None)
+
         self.invariant_readouts = torch.nn.ModuleList()
         self.invariant_readouts.append(LinearReadoutBlock(
             hidden_irreps, num_permutational_invariant, compute_nacs=False, nac_indices=0))
@@ -955,6 +966,13 @@ class AutoencoderExcitedMACE(torch.nn.Module):
                         hidden_irreps_out, MLP_irreps, gate, self.soc_indices))
                 else:
                     self.socs_readouts.append(None)
+
+                if self.compute_osce:
+                    self.osce_readouts.append(NonLinearOsceReadoutBlock(
+                        hidden_irreps_out, MLP_irreps, gate, self.osce_indices))
+                else:
+                    self.osce_readouts.append(None)
+
             else:
                 self.readouts.append(LinearReadoutBlock(
                     hidden_irreps, n_energies, compute_nacs, self.nac_indices))
@@ -963,6 +981,12 @@ class AutoencoderExcitedMACE(torch.nn.Module):
                         hidden_irreps, self.soc_indices))
                 else:
                     self.socs_readouts.append(None)
+
+                if self.compute_osce:
+                    self.osce_readouts.append(LinearOsceReadoutBlock(
+                        hidden_irreps, self.osce_indices))
+                else:
+                    self.osce_readouts.append(None)
 
             self.invariant_readouts.append(NonLinearReadoutBlock(
                 hidden_irreps_out, MLP_irreps, gate, num_permutational_invariant, compute_nacs=False, nac_indices=0))
@@ -1012,9 +1036,10 @@ class AutoencoderExcitedMACE(torch.nn.Module):
         invariant_contributions = []
         node_socs_list = []
         node_nacs_list = []
+        node_osce_list = []
 
-        for interaction, product, readout, invariant_readout, soc_readout in zip(
-            self.interactions, self.products, self.readouts, self.invariant_readouts, self.socs_readouts,
+        for interaction, product, readout, invariant_readout, soc_readout, osce_readout in zip(
+            self.interactions, self.products, self.readouts, self.invariant_readouts, self.socs_readouts, self.osce_readouts
         ):
             node_feats, sc = interaction(
                 node_attrs=data["node_attrs"],
@@ -1062,12 +1087,26 @@ class AutoencoderExcitedMACE(torch.nn.Module):
 
                 node_socs_list.append(soc_output)
 
+            if self.compute_osce:
+                osce_output = osce_readout(node_feats)
+                osce_output = scatter_sum(
+                    src=osce_output, index=data["batch"], dim=0, dim_size=num_graphs
+                )  # [n_graphs,]
+
+                node_osce_list.append(osce_output)
+
         if self.compute_socs:
             soc_contributions = torch.stack(node_socs_list, dim=1)
             total_socs = torch.sum(soc_contributions, dim=1)
         else:
             total_socs = torch.tensor([])
 
+        if self.compute_osce:
+            osce_contributions = torch.stack(node_osce_list, dim=1)
+            total_osce = torch.sum(osce_contributions, dim=1)
+            total_osce = torch.nn.functional.softplus(total_osce)
+        else:
+            total_osce = torch.tensor([])
         # Concatenate node features
         node_feats_out = torch.cat(node_feats_list, dim=-1)
 
@@ -1102,6 +1141,7 @@ class AutoencoderExcitedMACE(torch.nn.Module):
             "invariant_vals": invariant_vals,
             "socs": total_socs,
             "nacs": total_nacs,
+            "osce": total_osce,
             "dipoles": torch.tensor([]),
             "forces": forces,
             "virials": virials,

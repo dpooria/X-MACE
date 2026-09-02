@@ -333,7 +333,8 @@ def run(args: argparse.Namespace) -> None:
             forces_weight=args.forces_weight,
             dipoles_weight=args.dipoles_weight,
             nacs_weight=args.nacs_weight,
-            socs_weight=args.socs_weight
+            socs_weight=args.socs_weight,
+            osce_weight=args.osce_weight,
         )
 
     if args.compute_avg_num_neighbors:
@@ -503,7 +504,9 @@ def run(args: argparse.Namespace) -> None:
             radial_type=args.radial_type,
             compute_nacs=args.compute_nacs,
             compute_socs=args.compute_socs,
+            compute_osce=args.compute_osce,
             soc_num=args.soc_num,
+            osce_num=args.osce_num,
             nac_num=args.nac_num,
         )
     else:

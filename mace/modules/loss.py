@@ -513,7 +513,7 @@ class WeightedEnergyForcesNacsDipoleLoss(torch.nn.Module):
 
 
 class InvariantsWeightedEnergyForcesNacsDipoleLoss(torch.nn.Module):
-    def __init__(self, energy_weight=1.0, forces_weight=1.0, dipoles_weight=1.0, nacs_weight=1.0, socs_weight=10.0) -> None:
+    def __init__(self, energy_weight=1.0, forces_weight=1.0, dipoles_weight=1.0, nacs_weight=1.0, socs_weight=10.0, osce_weight=10.0) -> None:
         super().__init__()
         self.register_buffer(
             "energy_weight",
@@ -536,6 +536,11 @@ class InvariantsWeightedEnergyForcesNacsDipoleLoss(torch.nn.Module):
             torch.tensor(socs_weight, dtype=torch.get_default_dtype()),
         )
 
+        self.register_buffer(
+            "osce_weight",
+            torch.tensor(osce_weight, dtype=torch.get_default_dtype()),
+        )
+
     def forward(self, ref: Batch, pred: TensorDict) -> torch.Tensor:
         loss = 0
 
@@ -555,6 +560,12 @@ class InvariantsWeightedEnergyForcesNacsDipoleLoss(torch.nn.Module):
 
         if ref["socs"].shape == pred["socs"].shape:
             loss += self.socs_weight * phase_rmse_socs(ref, pred)
+
+        if (
+            ref["osce"].shape == pred["osce"].shape
+            and ref["osce"].numel() > 0
+        ):
+            loss += self.osce_weight * mean_squared_error_osce(ref, pred)
 
         return loss
 
