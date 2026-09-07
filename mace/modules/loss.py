@@ -541,13 +541,11 @@ class WeightedEnergyForcesNacsDipoleLoss(torch.nn.Module):
             ref["osce"].shape == pred["osce"].shape
             and ref["osce"].numel() > 0
         ):
+            #TODO: make the weights adjustable
             loss += self.osce_weight * total_composition_osce_loss(
                 ref,
                 pred,
-                scale=self.osce_scale,
-                dark_scale=self.osce_dark_scale,
-                fraction_weight=self.osce_fraction_weight,
-                raw_weight=self.osce_raw_weight,
+                raw_weight=0.1,
             )
 
         if ref["dipoles"].shape == pred["dipoles"].shape:
