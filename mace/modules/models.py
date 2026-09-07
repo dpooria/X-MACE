@@ -487,6 +487,7 @@ class ExcitedMACE(torch.nn.Module):
         distance_transform: str = "None",
         radial_MLP: Optional[List[int]] = None,
         radial_type: Optional[str] = "bessel",
+        osce_scale: float = 1.0,
     ):
         super().__init__()
         self.register_buffer(
@@ -552,6 +553,7 @@ class ExcitedMACE(torch.nn.Module):
         self.compute_nacs = compute_nacs
         self.soc_indices = soc_num
         self.osce_indices = osce_num
+        self.osce_scale = osce_scale
         self.nac_indices = nac_num
 
         # Use the appropriate self connection at the first layer for proper E0
