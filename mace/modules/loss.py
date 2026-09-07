@@ -437,15 +437,61 @@ class WeightedEnergyForcesDipoleLoss(torch.nn.Module):
         )
 
 
-def mean_squared_error_osce(
+# def mean_squared_error_osce(
+#     ref: Batch,
+#     pred: TensorDict,
+#     scale: float = 1.0,
+# ) -> torch.Tensor:
+#     ref_osce = torch.log1p(ref["osce"] / scale)
+#     pred_osce = torch.log1p(pred["osce"] / scale)
+#
+#     return torch.mean(torch.square(ref_osce - pred_osce))
+
+def total_composition_osce_loss(
     ref: Batch,
     pred: TensorDict,
     scale: float = 1.0,
+    dark_scale: float = 1.0,
+    fraction_weight: float = 1.0,
+    raw_weight: float = 0.1,
+    eps: float = 1.0e-8,
 ) -> torch.Tensor:
-    ref_osce = torch.log1p(ref["osce"] / scale)
-    pred_osce = torch.log1p(pred["osce"] / scale)
+    ref_osce = ref["osce"]
+    pred_osce = pred["osce"]
 
-    return torch.mean(torch.square(ref_osce - pred_osce))
+    ref_total = torch.sum(ref_osce, dim=-1, keepdim=True)
+    pred_total = pred["osce_total"]
+
+    num_states = ref_osce.shape[-1]
+    ref_fraction = (ref_osce + eps) / (ref_total + num_states * eps)
+    pred_fraction = pred["osce_fraction"]
+
+    ref_log_total = torch.log1p(ref_total / scale)
+    pred_log_total = torch.log1p(pred_total / scale)
+    total_loss = torch.nn.functional.smooth_l1_loss(
+        pred_log_total,
+        ref_log_total,
+    )
+
+    fraction_loss = -torch.sum(
+        ref_fraction * torch.log(torch.clamp(pred_fraction, min=eps)),
+        dim=-1,
+        keepdim=True,
+    )
+    dark_weight = ref_total / (ref_total + dark_scale)
+    fraction_loss = torch.mean(dark_weight * fraction_loss)
+
+    raw_loss = torch.nn.functional.smooth_l1_loss(
+        pred_osce,
+        ref_osce,
+    )
+
+    return (
+        total_loss
+        + fraction_weight * fraction_loss
+        + raw_weight * raw_loss
+    )
+
 
 
 class WeightedEnergyForcesNacsDipoleLoss(torch.nn.Module):
@@ -495,7 +541,14 @@ class WeightedEnergyForcesNacsDipoleLoss(torch.nn.Module):
             ref["osce"].shape == pred["osce"].shape
             and ref["osce"].numel() > 0
         ):
-            loss += self.osce_weight * mean_squared_error_osce(ref, pred)
+            loss += self.osce_weight * total_composition_osce_loss(
+                ref,
+                pred,
+                scale=self.osce_scale,
+                dark_scale=self.osce_dark_scale,
+                fraction_weight=self.osce_fraction_weight,
+                raw_weight=self.osce_raw_weight,
+            )
 
         if ref["dipoles"].shape == pred["dipoles"].shape:
             loss += self.dipoles_weight * \

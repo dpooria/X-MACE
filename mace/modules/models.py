@@ -740,10 +740,24 @@ class ExcitedMACE(torch.nn.Module):
 
         if self.compute_osce:
             osce_contributions = torch.stack(node_osce_list, dim=1)
-            total_osce = torch.sum(osce_contributions, dim=1)
-            total_osce = torch.nn.functional.softplus(total_osce)
+            raw_osce = torch.sum(osce_contributions, dim=1)
+
+            osce_a = raw_osce[:, :1]
+            osce_b = raw_osce[:, 1:]
+
+            osce_total = self.osce_scale * torch.nn.functional.softplus(osce_a)
+            osce_fraction = torch.nn.functional.softmax(osce_b, dim=-1)
+            total_osce = osce_total * osce_fraction
         else:
             total_osce = torch.tensor([])
+            osce_total = torch.tensor([])
+            osce_fraction = torch.tensor([])
+        # if self.compute_osce:
+        #     osce_contributions = torch.stack(node_osce_list, dim=1)
+        #     total_osce = torch.sum(osce_contributions, dim=1)
+        #     total_osce = torch.nn.functional.softplus(total_osce)
+        # else:
+        #     total_osce = torch.tensor([])
         # Concatenate node features
         node_feats_out = torch.cat(node_feats_list, dim=-1)
 
@@ -780,6 +794,8 @@ class ExcitedMACE(torch.nn.Module):
             "nacs": total_nacs,
             "socs": total_socs,
             "osce": total_osce,
+            "osce_total": osce_total,
+            "osce_fraction": osce_fraction,
             "dipoles": torch.tensor([]),
             "forces": forces,
             "virials": virials,

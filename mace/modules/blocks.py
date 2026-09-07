@@ -222,7 +222,7 @@ class LinearOsceReadoutBlock(torch.nn.Module):
         super().__init__()
 
         self.irreps_in = irreps_in
-        self.irreps_out = o3.Irreps(f"{osce_indices}x0e")
+        self.irreps_out = o3.Irreps(f"{osce_indices + 1}x0e")
 
         self.linear = o3.Linear(
             irreps_in=self.irreps_in,
@@ -245,10 +245,8 @@ class NonLinearOsceReadoutBlock(torch.nn.Module):
         super().__init__()
 
         self.irreps_in = irreps_in
-        self.irreps_out = o3.Irreps(f"{osce_indices}x0e")
+        self.irreps_out = o3.Irreps(f"{osce_indices + 1}x0e")
 
-        # Oscillator strengths are invariant scalars, so the readout MLP
-        # only needs even scalar (0e) channels.
         hidden_irreps = o3.Irreps(
             [
                 (mul, ir)
