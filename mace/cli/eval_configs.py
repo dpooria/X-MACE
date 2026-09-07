@@ -100,6 +100,9 @@ def run(args: argparse.Namespace) -> None:
     # Collect data
     energies_list = []
     osce_list = []
+    osce_total_list = []
+    osce_fraction_list = []
+
     contributions_list = []
     stresses_list = []
     forces_collection = []
@@ -112,6 +115,9 @@ def run(args: argparse.Namespace) -> None:
             stresses_list.append(torch_tools.to_numpy(output["stress"]))
         if args.compute_osce:
             osce_list.append(torch_tools.to_numpy(output["osce"]))
+            osce_total_list.append(torch_tools.to_numpy(output["osce_total"]))
+            osce_fraction_list.append(
+                torch_tools.to_numpy(output["osce_fraction"]))
 
         if args.return_contributions:
             contributions_list.append(
@@ -136,6 +142,10 @@ def run(args: argparse.Namespace) -> None:
     if args.compute_osce:
         osces = np.concatenate(osce_list, axis=0)
         assert len(atoms_list) == osces.shape[0]
+        osce_totals = np.concatenate(osce_total_list, axis=0)
+        osce_fractions = np.concatenate(osce_fraction_list, axis=0)
+        assert len(atoms_list) == osce_totals.shape[0]
+        assert len(atoms_list) == osce_fractions.shape[0]
 
     if args.return_contributions:
         contributions = np.concatenate(contributions_list, axis=0)
@@ -152,6 +162,8 @@ def run(args: argparse.Namespace) -> None:
 
         if args.compute_osce:
             atoms.info[args.info_prefix + "osce"] = osces[i]
+            atoms.info[args.info_prefix + "osce_total"] = osce_totals[i].item()
+            atoms.info[args.info_prefix + "osce_fraction"] = osce_fractions[i]
 
         if args.return_contributions:
             atoms.info[args.info_prefix +
